@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reply queue</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5f1;--surface:#fff;--ink:#17241e;--muted:#5d6b63;--line:#d8dfd9;--accent:#1d6b50;--accent-ink:#fff;--soft:#e3efe8;--hot:#b3361f;--hot-soft:#fbe6e1;--amber:#8a5a00;--amber-soft:#fbefd2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101814;--surface:#18241e;--ink:#e8efea;--muted:#9baba1;--line:#2b3a32;--accent:#5cc79b;--accent-ink:#0b1a13;--soft:#1f3329;--hot:#ff8d75;--hot-soft:#3a1f19;--amber:#f0c261;--amber-soft:#33290f}}
+:root[data-theme="dark"]{--bg:#101814;--surface:#18241e;--ink:#e8efea;--muted:#9baba1;--line:#2b3a32;--accent:#5cc79b;--accent-ink:#0b1a13;--soft:#1f3329;--hot:#ff8d75;--hot-soft:#3a1f19;--amber:#f0c261;--amber-soft:#33290f}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Avenir Next",Avenir,"Segoe UI",system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:1.7rem;margin:4px 0 2px;letter-spacing:-.02em}
+h2{font-size:1.05rem;margin:0 0 10px}
+.sub{color:var(--muted);margin:0 0 16px}
+.stats{display:flex;gap:10px;margin-bottom:16px}
+.stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:1.5rem;line-height:1.1}
+.stat span{color:var(--muted);font-size:.85rem}
+.stat.hot b{color:var(--hot)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;min-height:40px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.sprint-btn{width:100%;margin-bottom:16px;padding:12px;font-size:1.05rem}
+details{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:16px}
+summary{cursor:pointer;padding:12px 14px;font-weight:600}
+.pad{padding:0 14px 14px}
+label{display:block;font-size:.9rem;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+textarea{min-height:90px;resize:vertical}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.card.r0{border-left-color:var(--hot)}.card.r1{border-left-color:var(--amber)}.card.r2{border-left-color:var(--accent)}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.name{font-weight:700}
+.tag{font-size:.8rem;padding:2px 8px;border-radius:99px;background:var(--soft);white-space:nowrap}
+.tag.hot{background:var(--hot-soft);color:var(--hot)}.tag.amber{background:var(--amber-soft);color:var(--amber)}
+.note{margin:4px 0 10px;overflow-wrap:anywhere}
+.acts{display:flex;flex-wrap:wrap;gap:6px}
+.reply{margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chips button{min-height:34px;padding:4px 10px;font-size:.9rem;border-radius:99px;background:var(--soft)}
+.empty{text-align:center;color:var(--muted);padding:28px 12px;border:1px dashed var(--line);border-radius:10px}
+.tpl{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.privacy{font-size:.85rem;color:var(--muted);margin-top:24px}
+#sprint{position:fixed;inset:0;background:var(--bg);z-index:10;overflow:auto;padding:calc(20px + env(safe-area-inset-top,0px)) 16px calc(20px + env(safe-area-inset-bottom,0px))}
+#sprint[hidden]{display:none}
+.sp-in{max-width:640px;margin:0 auto}
+.bar{height:6px;background:var(--line);border-radius:9px;overflow:hidden;margin:8px 0 16px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;z-index:20;font-size:.9rem}
+@media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Reply queue</h1>
+  <p class="sub">Everything waiting on you, most urgent first.</p>
+  <div class="stats" id="stats"></div>
+  <button class="primary sprint-btn" id="sprintBtn" data-a="sprint">Start a 10-minute reply sprint</button>
+
+  <details id="addBox" open>
+    <summary>Add a message to reply to</summary>
+    <div class="pad">
+      <label for="fName">First name</label>
+      <input id="fName" autocomplete="off" placeholder="e.g. Sarah's mum, Aoife">
+      <div class="row">
+        <div><label for="fWho">From</label>
+          <select id="fWho"></select></div>
+        <div><label for="fKind">Type</label>
+          <select id="fKind"></select></div>
+      </div>
+      <label for="fNote">What's it about? (a few words)</label>
+      <input id="fNote" autocomplete="off" placeholder="e.g. asking to move Thursday's session">
+      <div class="row">
+        <div><label for="fUrg">How soon?</label>
+          <select id="fUrg"><option value="0">Today</option><option value="1" selected>This week</option><option value="2">Whenever</option></select></div>
+        <div><label for="fDue">Due date (optional)</label><input id="fDue" type="date"></div>
+      </div>
+      <p style="margin:14px 0 0"><button class="primary" data-a="add">Add to queue</button></p>
+    </div>
+  </details>
+
+  <div id="list"></div>
+
+  <details>
+    <summary>My From and Type options</summary>
+    <div class="pad">
+      <p class="sub" style="margin-top:0">Add your own choices for the dropdowns. Tap an option to remove it.</p>
+      <label>From</label>
+      <div class="chips" id="chips-who"></div>
+      <div class="row"><input id="oWho" autocomplete="off" placeholder="e.g. Coach, Club admin" aria-label="New From option"><button data-a="addOpt" data-k="whoOpts" data-inp="oWho" data-sel="fWho" style="flex:0 0 auto">Add</button></div>
+      <label>Type</label>
+      <div class="chips" id="chips-kind"></div>
+      <div class="row"><input id="oKind" autocomplete="off" placeholder="e.g. Payment query, Selection" aria-label="New Type option"><button data-a="addOpt" data-k="kindOpts" data-inp="oKind" data-sel="fKind" style="flex:0 0 auto">Add</button></div>
+    </div>
+  </details>
+
+  <details>
+    <summary>My reply templates</summary>
+    <div class="pad">
+      <p class="sub" style="margin-top:0">Write these once in your own words. <b>{name}</b> is swapped for the person's name. Anything in [square brackets] is a gap for you to fill before sending.</p>
+      <div id="tpls"></div>
+      <div class="tpl">
+        <label for="tTitle">New template name</label><input id="tTitle" autocomplete="off">
+        <label for="tText">Message</label><textarea id="tText" placeholder="Hi {name}, ..."></textarea>
+        <p><button data-a="addTpl">Save template</button></p>
+      </div>
+    </div>
+  </details>
+
+  <details>
+    <summary>Done recently</summary>
+    <div class="pad" id="done"></div>
+  </details>
+
+  <p class="privacy">Stays on this device only: nothing is sent anywhere. Keep to first names and a few words. Anything about a young person's welfare or safety should go through your club's safeguarding process, not this list.</p>
+</main>
+
+<div id="sprint" hidden></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+var KEY='replyQueue.v1';
+var DEFAULT_TPLS=[
+ {id:'t1',title:'Got it, reply soon',text:"Hi {name}, thanks for your message! I've seen it and I'll get back to you properly by [day]."},
+ {id:'t2',title:'Reschedule',text:"Hi {name}, no problem at all. Let's find another time. Does [day/time] work for you?"},
+ {id:'t3',title:'Confirmed',text:"Hi {name}, thanks for letting me know. All noted, see you at [session]!"},
+ {id:'t4',title:'Check-in',text:"Hi {name}, just checking in after [training/match]. How are you getting on?"}
+];
+var S={items:[],tpls:DEFAULT_TPLS,doneLog:[],whoOpts:['Player','Parent','Other'],kindOpts:['Needs a reply','Follow-up on my side']};
+try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.items)S=Object.assign(S,p)}}catch(e){}
+S.items.forEach(function(i){if(i.kind==='reply')i.kind='Needs a reply';else if(i.kind==='followup')i.kind='Follow-up on my side'});
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function uid(){return Math.random().toString(36).slice(2,9)}
+function rank(it){var t=today();if(it.due&&it.due<t)return 0;if(it.due&&it.due===t)return 1;return 2+Number(it.urgency)}
+function open(){return S.items.filter(function(i){return !i.done}).sort(function(a,b){return rank(a)-rank(b)||a.created-b.created})}
+function fill(t,name){return t.replace(/\{name\}/g,name)}
+function toast(m){var t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(function(){t.hidden=true},1800)}
+function copy(text){
+  function fb(){var a=document.createElement('textarea');a.value=text;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(a);toast('Copied')}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){toast('Copied')},fb)}else fb();
+}
+function label(it){
+  var r=rank(it),t=today();
+  if(it.due&&it.due<t)return['Overdue','hot'];
+  if(it.due&&it.due===t)return['Due today','hot'];
+  if(it.urgency==0)return['Today','hot'];
+  if(it.urgency==1)return['This week','amber'];
+  return['Whenever',''];
+}
+var openId=null,draftTpl={};
+function render(){
+  renderOpts();var q=open(),t=today();
+  var due=q.filter(function(i){return rank(i)<=1}).length;
+  var fu=q.filter(function(i){return /follow/i.test(i.kind||'')}).length;
+  $('stats').innerHTML='<div class="stat'+(due?' hot':'')+'"><b>'+due+'</b><span>due now</span></div><div class="stat"><b>'+q.length+'</b><span>waiting</span></div><div class="stat"><b>'+fu+'</b><span>follow-ups</span></div>';
+  $('sprintBtn').hidden=!q.length;
+  if(!q.length){$('list').innerHTML='<div class="empty">Nothing waiting. Add a message above when one comes in.</div>'}
+  else $('list').innerHTML=q.map(function(it){
+    var l=label(it),r=Math.min(rank(it),2);
+    var h='<div class="card r'+r+'"><div class="top"><span class="name">'+esc(it.name)+' <span style="font-weight:400;color:var(--muted)">('+esc(it.who)+')</span></span><span class="tag '+l[1]+'">'+l[0]+'</span></div>'
+     +'<div class="note">'+(it.kind&&it.kind!=='Needs a reply'?'<b>'+esc(it.kind)+':</b> ':'')+esc(it.note||'No note')+(it.due?' <span style="color:var(--muted)">· due '+esc(it.due)+'</span>':'')+'</div>'
+     +'<div class="acts"><button class="primary" data-a="reply" data-id="'+it.id+'">Reply</button><button data-a="done" data-id="'+it.id+'">Done</button><button class="ghost" data-a="snooze" data-id="'+it.id+'">Tomorrow</button><button class="ghost" data-a="del" data-id="'+it.id+'">Remove</button></div>';
+    if(openId===it.id)h+=replyPanel(it,'');
+    return h+'</div>';
+  }).join('');
+  $('tpls').innerHTML=S.tpls.map(function(tp){return '<div class="tpl"><b>'+esc(tp.title)+'</b><textarea data-tpl="'+tp.id+'">'+esc(tp.text)+'</textarea><p><button class="ghost" data-a="delTpl" data-id="'+tp.id+'">Delete template</button></p></div>'}).join('');
+  var dl=S.doneLog.slice(-8).reverse();
+  $('done').innerHTML=dl.length?dl.map(function(d){return '<div style="padding:4px 0">'+esc(d.name)+' <span style="color:var(--muted)">· '+esc(d.note||'')+'</span></div>'}).join(''):'<span class="sub">Nothing completed yet.</span>';
+}
+function renderOpts(){
+  [['who','fWho','whoOpts'],['kind','fKind','kindOpts']].forEach(function(g){
+    var sel=$(g[1]),cur=sel.value;
+    sel.innerHTML=S[g[2]].map(function(o){return '<option>'+esc(o)+'</option>'}).join('');
+    if(S[g[2]].indexOf(cur)>-1)sel.value=cur;
+    $('chips-'+g[0]).innerHTML=S[g[2]].map(function(o,i){return '<button data-a="delOpt" data-k="'+g[2]+'" data-i="'+i+'" aria-label="Remove '+esc(o)+'">'+esc(o)+' ×</button>'}).join('');
+  });
+}
+function replyPanel(it,pre){
+  var sel=draftTpl[pre+it.id];
+  var chips=S.tpls.map(function(tp){return '<button data-a="pick" data-pre="'+pre+'" data-id="'+it.id+'" data-tpl="'+tp.id+'">'+esc(tp.title)+'</button>'}).join('');
+  var txt=sel?fill((S.tpls.filter(function(x){return x.id===sel})[0]||{text:''}).text,it.name):'';
+  return '<div class="reply"><div class="chips">'+chips+'</div><textarea id="draft-'+pre+it.id+'" placeholder="Pick a template, or write your own...">'+esc(txt)+'</textarea><p style="margin:8px 0 0"><button class="primary" data-a="copy" data-pre="'+pre+'" data-id="'+it.id+'">Copy to paste in WhatsApp</button></p></div>';
+}
+function finish(id){
+  var it=S.items.filter(function(i){return i.id===id})[0];if(!it)return;
+  it.done=true;S.doneLog.push({name:it.name,note:it.note});S.doneLog=S.doneLog.slice(-50);save();
+}
+var sp={ids:[],i:0,total:0};
+function renderSprint(){
+  var box=$('sprint');
+  var cur=sp.ids[sp.i]&&S.items.filter(function(x){return x.id===sp.ids[sp.i]&&!x.done})[0];
+  while(!cur&&sp.i<sp.ids.length){sp.i++;cur=sp.ids[sp.i]&&S.items.filter(function(x){return x.id===sp.ids[sp.i]&&!x.done})[0]}
+  if(!cur){box.innerHTML='<div class="sp-in"><h1>Sprint finished</h1><p class="sub">That is all for this round. '+open().length+' still waiting in the queue.</p><button class="primary" data-a="exit">Back to queue</button></div>';return}
+  var l=label(cur);
+  box.innerHTML='<div class="sp-in"><div class="top"><b>'+(sp.i+1)+' of '+sp.ids.length+'</b><button class="ghost" data-a="exit">Stop</button></div><div class="bar"><i style="width:'+Math.round(sp.i/sp.ids.length*100)+'%"></i></div>'
+   +'<div class="card r'+Math.min(rank(cur),2)+'"><div class="top"><span class="name">'+esc(cur.name)+' ('+esc(cur.who)+')</span><span class="tag '+l[1]+'">'+l[0]+'</span></div><div class="note">'+esc(cur.note||'')+'</div>'+replyPanel(cur,'s-')
+   +'<div class="acts" style="margin-top:12px"><button class="primary" data-a="sdone" data-id="'+cur.id+'">Done, next</button><button data-a="skip">Skip</button></div></div></div>';
+}
+document.addEventListener('click',function(e){
+  var b=e.target.closest('[data-a]');if(!b)return;
+  var a=b.dataset.a,id=b.dataset.id,pre=b.dataset.pre||'';
+  if(a==='add'){
+    var name=$('fName').value.trim();if(!name){$('fName').focus();toast('Add a first name');return}
+    S.items.push({id:uid(),name:name,who:$('fWho').value,kind:$('fKind').value,note:$('fNote').value.trim(),urgency:$('fUrg').value,due:$('fDue').value,created:Date.now(),done:false});
+    ['fName','fNote','fDue'].forEach(function(x){$(x).value=''});save();render();toast('Added');
+  }else if(a==='reply'){openId=openId===id?null:id;render()}
+  else if(a==='pick'||a==='copy'){
+    if(a==='pick'){draftTpl[pre+id]=b.dataset.tpl;if(pre){renderSprint()}else render()}
+    else{var ta=$('draft-'+pre+id);if(ta)copy(ta.value)}
+  }
+  else if(a==='done'){finish(id);render()}
+  else if(a==='snooze'){var it=S.items.filter(function(i){return i.id===id})[0];if(it){var d=new Date();d.setDate(d.getDate()+1);it.due=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');it.urgency=1;save();render();toast('Moved to tomorrow')}}
+  else if(a==='del'){S.items=S.items.filter(function(i){return i.id!==id});save();render()}
+  else if(a==='addTpl'){var ti=$('tTitle').value.trim(),tx=$('tText').value.trim();if(!ti||!tx){toast('Add a name and a message');return}S.tpls.push({id:uid(),title:ti,text:tx});$('tTitle').value='';$('tText').value='';save();render()}
+  else if(a==='delTpl'){S.tpls=S.tpls.filter(function(x){return x.id!==id});save();render()}
+  else if(a==='addOpt'){var ok=b.dataset.k,oi=$(b.dataset.inp),ov=oi.value.trim();if(!ov)return;if(S[ok].indexOf(ov)<0)S[ok].push(ov);oi.value='';save();renderOpts();$(b.dataset.sel).value=ov;toast('Added')}
+  else if(a==='delOpt'){var arr=S[b.dataset.k];if(arr.length<=1){toast('Keep at least one option');return}arr.splice(Number(b.dataset.i),1);save();renderOpts()}
+  else if(a==='sprint'){sp.ids=open().slice(0,5).map(function(x){return x.id});sp.i=0;$('sprint').hidden=false;renderSprint()}
+  else if(a==='sdone'){finish(id);sp.i++;renderSprint()}
+  else if(a==='skip'){sp.i++;renderSprint()}
+  else if(a==='exit'){$('sprint').hidden=true;render()}
+});
+document.addEventListener('input',function(e){
+  var t=e.target.dataset&&e.target.dataset.tpl;
+  if(t&&e.target.tagName==='TEXTAREA'){var tp=S.tpls.filter(function(x){return x.id===t})[0];if(tp){tp.text=e.target.value;save()}}
+});
+render();
+})();
+</script>
+</body>
+</html>
